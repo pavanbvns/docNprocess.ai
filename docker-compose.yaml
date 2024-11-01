@@ -1,0 +1,12 @@
+version: '1'
+
+services:
+  web:
+    build: .
+    command: sh -c "python doc-ai_app.py"
+    env_file:
+      - .env
+    ports:
+      - 6060:6060
+    volumes:
+      - .:/doc-ai_app

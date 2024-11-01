@@ -1,0 +1,7 @@
+llm_model_path: "./models/Llama-3.2-3B"
+embedding_model_path: "./models/bge-m3"
+qdrant_local_url: "http://localhost:6333"
+qdrant_timeout: 1000
+collection_name: "vector-db"
+chunk_size: 512
+upload_dir: "uploads"

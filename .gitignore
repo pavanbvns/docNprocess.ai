@@ -1,0 +1,7 @@
+.venv/
+deleted/
+uploads/
+utils/__pycache__/
+__pycache__/
+models/
+install_files/
