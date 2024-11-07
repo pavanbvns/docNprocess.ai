@@ -10,8 +10,10 @@ from utils.vectors import VectorManager
 from utils.chatbot import Chatbot_doc
 from utils.model import Model
 from utils.utils import utils
-from transformers import BitsAndBytesConfig
+from transformers import BitsAndBytesConfig, pipeline
 from PIL import Image
+from pathlib import Path
+import datetime
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,11 +34,19 @@ with open("config.yml", "r") as conf:
 
 # llm_loaded = Model.load_model_llama323b()
 # tokenizer = Model.load_tokenizer_llama323b()
-llm_loaded = Model.load_model_llama3211b(device, bnb_config)
-tokenizer = Model.load_processor_llama3211b()
 # classifier_model_loaded = Model.load_classifier_model()
 # classifier_tokenizer = Model.load_classifier_tokenizer()
-processor = Model.load_processor_llama3211b()
+
+# Loading LLama 3.2 11B Vision Model, tokenizer, processor and pipeline
+llama_llm_loaded = Model.load_model_llama3211b(device, bnb_config)
+llama_tokenizer = Model.load_processor_llama3211b()
+llama_processor = Model.load_processor_llama3211b()
+# llama_text_gen_pipeline = pipeline(
+#     "text-generation",
+#     model=llama_llm_loaded,
+#     tokenizer=llama_tokenizer,
+#     max_new_tokens=3000,
+# )
 
 
 @router.get("/")
@@ -70,8 +80,8 @@ def get_doc_summary(uploaded_file: UploadFile = File(...)):
         config=config,
         device=device,
         vector_store=qdrant_vectorstore,
-        llm_model=llm_loaded,
-        tokenizer=tokenizer,
+        llm_model=llama_llm_loaded,
+        tokenizer=llama_tokenizer,
         embedding_model_name=config["embedding_model_path"],
         qdrant_url=config["qdrant_local_url"],
         collection_name=config["collection_name"],
@@ -84,7 +94,9 @@ def get_doc_summary(uploaded_file: UploadFile = File(...)):
 
 @app.post("/qna_on_docs")
 def qna_on_docs(uploaded_file: UploadFile = File(...), query: str = Query(...)):
-    file_path = f"uploads/{uploaded_file.filename}"
+    file_name = uploaded_file.filename.strip(".")[0]
+    Path(f"uploads/{file_name}/images_in_file").mkdir(parents=True, exist_ok=True)
+    file_path = f"uploads/{file_name}/{uploaded_file.filename}"
     with open(file_path, "w+b") as file:
         shutil.copyfileobj(uploaded_file.file, file)
 
@@ -105,8 +117,8 @@ def qna_on_docs(uploaded_file: UploadFile = File(...), query: str = Query(...)):
         config=config,
         device=device,
         vector_store=qdrant_vectorstore,
-        llm_model=llm_loaded,
-        tokenizer=tokenizer,
+        llm_model=llama_llm_loaded,
+        tokenizer=llama_tokenizer,
         embedding_model_name=config["embedding_model_path"],
         qdrant_url=config["qdrant_local_url"],
         collection_name=config["collection_name"],
@@ -117,6 +129,75 @@ def qna_on_docs(uploaded_file: UploadFile = File(...), query: str = Query(...)):
     return answer
 
 
+<<<<<<< HEAD
+=======
+@app.post("/qna_doc_vision")
+def qna_doc_vision(uploaded_file: UploadFile = File(...), query: str = Query(...)):
+    foldername = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    Path(f"uploads/{foldername}/images_in_file").mkdir(parents=True, exist_ok=True)
+
+    file_path = f"uploads/{foldername}/{uploaded_file.filename}"
+
+    images_path = f"uploads/{foldername}/images_in_file"
+
+    # file_path = f"uploads/{uploaded_file.filename}"
+    with open(file_path, "w+b") as file:
+        shutil.copyfileobj(uploaded_file.file, file)
+
+    file_uuid = str(uuid.uuid4())
+    file_hash = hashlib.sha256(uploaded_file.file.read()).hexdigest()
+
+    if file_path.endswith(".pdf"):
+        # process the document
+        texts_in_doc, tables_in_doc = utils.process_document(file_path, images_path)
+
+        # Prompt for generating descriptions
+        prompt_text = """You are an assistant tasked with describing every row of the table. \
+        Give a detailed description of every row of table. Table chunk: {element}. \
+        Also give a summary of the table in the end."""
+        # Generating descriptions for each table
+        table_desc = []
+        for text in tables_in_doc:
+            inputs = llama_processor(
+                None, prompt_text.format(element=text), return_tensors="pt"
+            ).to(device)
+            generated_text_encoded = llama_llm_loaded.generate(
+                inputs.input_ids, max_length=500
+            )
+            generated_text = llama_processor.decode(generated_text_encoded[0])
+            table_desc.append(generated_text)
+        print("Tables description \n", table_desc)
+        exit()
+    elif (
+        file_path.endswith(".jpg")
+        or file_path.endswith(".png")
+        or file_path.endswith(".tiff")
+    ):
+        image = Image.open(file_path)
+
+    messageDataStructure = [
+        {
+            "role": "user",
+            "content": [{"type": "image"}, {"type": "text", "text": query}],
+        }
+    ]
+    textInput = llama_processor.apply_chat_template(
+        messageDataStructure, add_generation_prompt=True
+    )
+
+    inputs = llama_processor(image, textInput, return_tensors="pt").to(device)
+
+    output = llama_llm_loaded.generate(**inputs, max_new_tokens=2000)
+
+    generatedOutput = llama_processor.decode(output[0])
+
+    print(generatedOutput)
+
+    return generatedOutput
+
+
+>>>>>>> 5677807 (progress on handling complex pdf / doc files)
 """ @app.post("/chat_with_doc")
 async def chat_with_doc(uploaded_file: UploadFile = File(...), query: str = Query(...)):
     # ... (rest of the code)

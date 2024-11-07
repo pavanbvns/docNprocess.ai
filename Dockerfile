@@ -6,4 +6,4 @@ COPY . /app
 
 RUN pip install /app/install_files/*
 
-
+ENV POPPLER_PATH /usr/local/bin

@@ -33,18 +33,22 @@ class VectorManager:
                 # Create the collection if it doesn't exist
                 self.qdrant_client.create_collection(
                     collection_name=config["collection_name"],
-                    vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                    # vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                    vectors_config={
+                        "image": VectorParams(size=512, distance=Distance.COSINE),
+                        "text": VectorParams(size=1024, distance=Distance.COSINE),
+                    },
                 )
             else:
                 raise e
-        embeddings = HuggingFaceBgeEmbeddings(
+        text_embeddings = HuggingFaceBgeEmbeddings(
             model_name="models/bge-m3",
             model_kwargs={"device": self.device},
             encode_kwargs={"normalize_embeddings": True},
         )
         vector_store = Qdrant(
             client=self.qdrant_client,
-            embeddings=embeddings,
+            embeddings=text_embeddings,
             collection_name=config["collection_name"],
         )
 

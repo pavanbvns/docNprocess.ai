@@ -3,11 +3,13 @@ from transformers import (
     AutoModelForCausalLM,
     MllamaForConditionalGeneration,
     AutoProcessor,
-    BitsAndBytesConfig,
+    pipeline,
+    AutoModelForSequenceClassification,
 )
+
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 import torch
-from langchain_community.llms import CTransformers
+# from langchain_community.llms import CTransformers
 
 
 class Model:
@@ -24,9 +26,10 @@ class Model:
         tokenizer = AutoTokenizer.from_pretrained("./models/Llama-3.2-3B")
         return tokenizer
 
-    def load_model_llama3211b(bnb_config, device):
+    # bnb_config
+    def load_model_llama3211b(device, bnb_config):
         model = MllamaForConditionalGeneration.from_pretrained(
-            "./models/Llama-3.2-3B-Instruct/",
+            "./models/Llama-3.2-11B-Vision-Instruct",
             quantization_config=bnb_config,
             torch_dtype=torch.bfloat16,
             device_map=device,
@@ -34,7 +37,9 @@ class Model:
         return model
 
     def load_processor_llama3211b():
-        processor = AutoProcessor.from_pretrained("./models/Llama-3.2-3B-Instruct/")
+        processor = AutoProcessor.from_pretrained(
+            "./models/Llama-3.2-11B-Vision-Instruct"
+        )
         return processor
 
     def create_embeddings(device):
@@ -45,9 +50,22 @@ class Model:
         )
         return embeddings
 
-    def load_llama323b():
+    """ def load_llama323b():
         # Load the locally downloaded model here
         llm = CTransformers(
             model="./models/Llama-3.2-3B-Instruct/", model_type="llama", temperature=0.7
         )
-        return llm
+        return llm """
+
+    def load_classifier_model():
+        classifier_model = AutoModelForSequenceClassification.from_pretrained(
+            "./models/distilbert-base-cased-distilled-squad"
+        )
+        return classifier_model
+
+    def load_classifier_tokenizer():
+        classifier_tokenizer = AutoTokenizer.from_pretrained(
+            "./models/distilbert-base-cased-distilled-squad"
+        )
+
+        return classifier_tokenizer
