@@ -1,7 +1,59 @@
-llm_model_path: "./models/Llama-3.2-3B"
-embedding_model_path: "./models/bge-m3"
-qdrant_local_url: "http://localhost:6333"
-qdrant_timeout: 1000
-collection_name: "vector-db"
-chunk_size: 512
-upload_dir: "uploads"
+# Server configuration
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+# Directory paths
+directories:
+  upload_dir: "uploaded_files"
+  processed_dir: "processed"
+  log_file_path: "logs/app.log"
+
+
+# Model configurations
+model_details:
+  model_name: "Llama 3.2 11B Vision"
+  model_path: "models/Llama-3.2-11B-Vision-Instruct"
+  
+  # text_embedding_model:
+  #   model_path: "models/bge-m3"  # Only used if use_full_pipeline is true
+  # image_embedding_model:
+  #   model_path: "models/clip-vit-base-patch32"  # Only used if use_full_pipeline is true
+
+# Pipeline settings
+settings:
+  # use_full_pipeline: false  # Set to true to use bge-m3 for text embeddings and CLIP for image embeddings
+  max_file_size_mb: 50  # Maximum allowed file size in MB for each uploaded file
+  max_cumulative_file_size_mb: 50  # Maximum cumulative file size for multiple uploads in MB
+  allowed_file_extensions: ["pdf", "docx", "jpg", "jpeg", "tiff", "png"]
+
+# Qdrant configuration
+qdrant:
+  db_path: "qdrant_db"
+  collection_name: "default_collection"  # Default collection name
+  vector_size: 1024  # Vector size for embeddings; adjust based on model output dimensions
+
+# Embedding settings
+embedding:
+  batch_size: 64  # Batch size for upserting embeddings to Qdrant
+  distance_metric: "Cosine"  # Distance metric for similarity search
+
+# Authentication (optional, if authentication is implemented in the future)
+auth:
+  username: "admin"
+  password: "password"
+
+# Miscellaneous
+logging:
+  level: "INFO"  # Set logging level (e.g., DEBUG, INFO, WARNING, ERROR)
+
+# Memory Management
+memory_management:
+  enable_expandable_segments: true  # Optional setting to expand CUDA memory segments
+
+qdrant:
+  server_url: "http://localhost:6333"  # URL of your Qdrant server
+  collection_name: "default_collection"
+  vector_size: 1024
+  distance_metric: "Cosine"
+

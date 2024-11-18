@@ -4,4 +4,7 @@ uploads/
 utils/__pycache__/
 __pycache__/
 models/
-install_files/
+# install_files/
+# *nvidia_*.whl
+*triton*.whl
+*torch*.whl

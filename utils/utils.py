@@ -1,117 +1,191 @@
-import torch
-import shutil
-import magic
-from langchain_community.document_loaders import PyPDFDirectoryLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
-from typing import List
-from PIL import Image
-from unstructured.partition.pdf import partition_pdf
-from unstructured.documents.elements import Image
+import os
+import logging
+import threading
+import hashlib
+import time
+from datetime import datetime
+from fastapi import HTTPException, UploadFile
+from uuid import uuid4
 
 
-class utils:
-    def get_device_map() -> str:
-        return "cuda" if torch.cuda.is_available() else "cpu"
+class Utils:
+    @staticmethod
+    def authenticate_user(username, password, config):
+        """Authenticates users based on the provided username and password."""
+        valid_username = config["auth"]["username"]
+        valid_password = config["auth"]["password"]
+        if username != valid_username or password != valid_password:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    def pdf_loader(file_location: str):
-        loader = PyPDFDirectoryLoader(file_location)
-        docs = loader.load()
-        return docs
+    @staticmethod
+    def ensure_directory_exists(directory_path):
+        """Ensures that the specified directory exists, creating it if necessary."""
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
 
-    def text_splitter(docs):
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1024, chunk_overlap=64
-        )
-        texts = text_splitter.split_documents(docs)
-        return texts
+    @staticmethod
+    def calculate_file_hash(file_path):
+        """Generates a SHA-256 hash for the specified file for deduplication."""
+        hasher = hashlib.sha256()
+        with open(file_path, "rb") as file:
+            while chunk := file.read(8192):
+                hasher.update(chunk)
+        file_hash = hasher.hexdigest()
+        logging.info(f"Generated hash for {file_path}: {file_hash}")
+        return file_hash
 
-    def get_doc_mime_type(doc):
-        doc_mime_type = magic.from_file(doc)
-        return doc_mime_type
+    @staticmethod
+    def execute_in_threads(target_function, args_list, max_threads=4):
+        """Executes a function in multiple threads with a limit on the maximum threads."""
+        threads = []
+        for args in args_list:
+            thread = threading.Thread(target=target_function, args=args)
+            threads.append(thread)
+            thread.start()
+            if len(threads) >= max_threads:
+                for t in threads:
+                    t.join()
+                threads = []
+        for t in threads:
+            t.join()
 
-    def upload_file(uploaded_file):
-        path = f"uploads/{uploaded_file.filename}"
-        with open(path, "w+b") as file:
-            shutil.copyfileobj(uploaded_file.file, file)
+    @staticmethod
+    def run_with_retries(func, retries=3, delay=2, *args, **kwargs):
+        """Runs a function with retry attempts and delay between retries."""
+        for attempt in range(retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Attempt {attempt + 1} failed for {func.__name__}: {e}")
+                time.sleep(delay)
+        logging.error(f"Failed to execute {func.__name__} after {retries} attempts.")
+        raise
 
-        return {
-            "file": uploaded_file.filename,
-            "content": uploaded_file.content_type,
-            "path": path,
-        }
-
-    def load_document(file_path: str) -> List[str]:
-        if file_path.endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
-            return loader.load()
-        elif (
-            file_path.endswith(".jpg")
-            or file_path.endswith(".png")
-            or file_path.endswith(".tiff")
-        ):
-            image = Image.open(file_path)
-            return image
-        # elif file_path.endswith(".doc") or file_path.endswith(".docx"):
-        # text = docx2txt.process(file_path)
-        # loader = TextLoader(text)
-        else:
-            print("Unsupported file type")
-
-    def process_document(file_path, images_path):
-        if file_path.endswith(".pdf"):
-            raw_pdf_elements = partition_pdf(
-                filename=file_path,
-                extract_images_in_pdf=True,
-                infer_table_structure=True,
-                chunking_strategy="by_title",
-                max_characters=4000,
-                new_after_n_chars=3800,
-                combine_text_under_n_chars=2000,
-                image_output_dir_path=images_path,
+    @staticmethod
+    def file_size_within_limit(file: UploadFile, max_size_mb: int) -> bool:
+        """Checks if a file’s size is within a specified limit in megabytes without saving it."""
+        try:
+            file.file.seek(0, 2)  # Move the pointer to the end of the file
+            file_size = file.file.tell() / (1024 * 1024)  # File size in MB
+            file.file.seek(0)  # Reset the pointer to the beginning
+            if file_size > max_size_mb:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File size exceeds the limit of {max_size_mb} MB.",
+                )
+                return HTTPException(
+                    status_code=400,
+                    detail=f"File size exceeds the limit of {max_size_mb} MB.",
+                )
+            return True
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error checking file size: {str(e)}",
             )
 
-            tables_in_doc = []
-            texts_in_doc = []
+    @staticmethod
+    def validate_file_type(file: UploadFile, allowed_extensions: list) -> bool:
+        """Validates file extension based on allowed types without saving it."""
+        ext = file.filename.split(".")[-1].lower()
+        if ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '.{ext}' is not allowed. Allowed types: {allowed_extensions}.",
+            )
+            return HTTPException(
+                status_code=400,
+                detail=f"File type '.{ext}' is not allowed. Allowed types: {allowed_extensions}.",
+            )
+        return True
 
-            # categorizing data based on tables and text
-            for element in raw_pdf_elements:
-                if "unstructured.documents.elements.Table" in str(type(element)):
-                    tables_in_doc.append(str(element))
-                elif "unstructured.documents.elements.CompositeElement" in str(
-                    type(element)
-                ):
-                    texts_in_doc.append(str(element))
+    @staticmethod
+    def get_model_configuration(config):
+        """Determines which model setup to use based on configuration."""
+        try:
+            use_full_pipeline = config["settings"].get("use_full_pipeline", False)
+            logging.info(
+                f"Using {'full pipeline' if use_full_pipeline else 'single model'} configuration."
+            )
+            return use_full_pipeline
+        except KeyError as e:
+            logging.error(f"Config missing 'use_full_pipeline' setting: {e}")
+            raise
 
-            images = [
-                element for element in raw_pdf_elements if isinstance(element, Image)
-            ]
-            for i, img in enumerate(images):
-                with open(f"{images_path}/image_{i}.png", "wb") as f:
-                    f.write(img.data)
+    @staticmethod
+    def load_models_for_pipeline(config):
+        """Loads models based on configuration settings for the pipeline."""
+        try:
+            from utils.model import (
+                ModelLoader,
+            )  # Imported here to avoid circular dependency
 
-        return texts_in_doc, tables_in_doc
+            use_full_pipeline = Utils.get_model_configuration(config)
+            model_loader = ModelLoader(config_file_path="config.yml")
 
-        def gen_table_desc(table_list, llama_text_gen_pipeline):
-            # Configuration for text generation
-            generation_args = {
-                "max_new_tokens": 4000,
-                "return_full_text": False,
-                "temperature": 0.0,
-                "do_sample": False,
-            }
+            primary_model = model_loader.primary_model_loader
+            text_embedding_model = None
+            image_embedding_model = None
 
-            # Prompt for generating descriptions
-            prompt_text = """You are an assistant tasked with describing every row of the table. \
-            Give a detailed description of every row of table. Table chunk: {element}. \
-            Also give a summary of the table in the end."""
-
-            # Generating descriptions for each table
-            table_desc = []
-            for text in table_list:
-                output = llama_text_gen_pipeline(
-                    [{"role": "user", "content": prompt_text.format(element=text)}],
-                    **generation_args,
+            if use_full_pipeline:
+                text_embedding_model = model_loader.text_embedding_model_loader
+                image_embedding_model = model_loader.image_embedding_model_loader
+                logging.info(
+                    "Full pipeline setup with primary, text, and image embedding models."
                 )
-                table_desc.append(output[0]["generated_text"])
-            return table_desc
+            else:
+                logging.info("Using primary model only for pipeline.")
+
+            return primary_model, text_embedding_model, image_embedding_model
+        except Exception as e:
+            logging.error(f"Error loading models for pipeline: {e}")
+            raise
+
+
+class JobTracker:
+    """Tracks jobs and their status, ensuring thread-safe updates."""
+
+    _job_counter = 0  # Class-level counter for generating unique job IDs
+    _counter_lock = threading.Lock()
+
+    def __init__(self):
+        self.jobs = {}
+        self.job_lock = threading.Lock()
+
+    def _generate_job_id(self):
+        """Generates a job ID with a timestamp and incrementing counter."""
+        with self._counter_lock:
+            JobTracker._job_counter += 1
+            counter = JobTracker._job_counter
+
+        # Use the current timestamp formatted to the second level
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        return f"{timestamp}_{counter}"
+
+    def create_job(self):
+        """Creates a new job entry and returns the job ID."""
+        with self.job_lock:
+            job_id = self._generate_job_id()
+            self.jobs[job_id] = {
+                "status": "Started",
+                "start_time": datetime.now(),
+                "end_time": None,
+            }
+            logging.info(f"Job {job_id} started.")
+        return job_id
+
+    def update_job_status(self, job_id, status):
+        """Updates the status of a job by its job ID."""
+        with self.job_lock:
+            if job_id in self.jobs:
+                self.jobs[job_id]["status"] = status
+                if status in ["Completed", "Aborted"]:
+                    self.jobs[job_id]["end_time"] = datetime.now()
+                    logging.info(f"Job {job_id} {status}.")
+            else:
+                raise ValueError(f"Job {job_id} does not exist.")
+
+    def get_job_history(self):
+        """Retrieves a copy of the job history."""
+        with self.job_lock:
+            return self.jobs.copy()
