@@ -7,4 +7,13 @@ models/
 # install_files/
 # *nvidia_*.whl
 *triton*.whl
+<<<<<<< HEAD
 *torch*.whl
+=======
+*torch*.whl
+logs/app.log
+logs/project.log
+figures/*
+figures
+install_files/nvidia*
+>>>>>>> 35fd06b (code without langchain, file summarization, qna on file)
