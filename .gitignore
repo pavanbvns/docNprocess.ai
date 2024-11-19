@@ -16,4 +16,8 @@ logs/project.log
 figures/*
 figures
 install_files/nvidia*
+<<<<<<< HEAD
 >>>>>>> 35fd06b (code without langchain, file summarization, qna on file)
+=======
+install_files
+>>>>>>> f4f36a6 (updated commit)
