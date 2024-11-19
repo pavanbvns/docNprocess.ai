@@ -1,16 +1,3 @@
-<<<<<<< HEAD
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    MllamaForConditionalGeneration,
-    AutoProcessor,
-    pipeline,
-    AutoModelForSequenceClassification,
-)
-
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-=======
->>>>>>> ab8f96b (code without langchain, file summarization, qna on file)
 import torch
 import os
 import gc

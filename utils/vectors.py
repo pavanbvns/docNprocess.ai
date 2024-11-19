@@ -127,25 +127,6 @@ class VectorStore:
             logging.error(f"Error processing file {file_path}: {e}")
             raise
 
-<<<<<<< HEAD
-        # Split long documents and add to the vector store
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000, chunk_overlap=200
-        )
-        for doc in documents:
-            if len(doc.page_content) > 10000:  # Adjust the threshold as needed
-                splits = text_splitter.split_text(doc.page_content)
-                for split in splits:
-                    split.metadata["custom_metadata"] = {
-                        "file_name": file_name,
-                        "file_hash": file_hash,
-                    }
-                vector_store.add_documents(splits)
-
-            else:
-                doc.metadata["custom_metadata"] = {
-                    "file_name": file_name,
-=======
     def _process_text_file(self, file_path, file_hash, file_uuid):
         """Creates text embeddings for document content and stores them in Qdrant."""
         try:
@@ -157,7 +138,6 @@ class VectorStore:
                 id=str(uuid4()),
                 vector=embeddings.tolist(),
                 payload={
->>>>>>> ab8f96b (code without langchain, file summarization, qna on file)
                     "file_hash": file_hash,
                     "file_uuid": file_uuid,
                     "type": "text",

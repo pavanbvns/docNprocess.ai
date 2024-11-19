@@ -1,2 +1,0 @@
-*.safetensors filter=lfs diff=lfs merge=lfs -text
-*nvidia_*.whl filter=lfs diff=lfs merge=lfs -text
