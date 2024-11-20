@@ -41,6 +41,8 @@ torch.set_num_threads(8)
 def create_app():
     # Set environment variable for CUDA memory management
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    uvicorn_url = os.getenv("UVICORN_URL", "http://127.0.0.1:8000")
+    qdrant_server_url = os.getenv("QDRANT_SERVER_URL", "http://127.0.0.1:6333")
 
     config = load_config("config.yml")
     logger = setup_logging(config["directories"]["log_file_path"])
